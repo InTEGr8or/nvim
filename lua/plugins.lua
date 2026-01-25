@@ -186,15 +186,14 @@ return {
       -- [[ Configure Telescope ]]
       -- See `:help telescope` and `:help telescope.setup()`
       require('telescope').setup {
-        -- You can put your default mappings / updates / etc. in here
-        --  All the info you're looking for is in `:help telescope.setup()`
-        --
-        -- defaults = {
-        --   mappings = {
-        --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-        --   },
-        -- },
-        -- pickers = {}
+        defaults = {
+          file_ignore_patterns = {
+            'node_modules/.*',
+            'build/.*',
+            'dist/.*',
+            '%.git/.*',
+          },
+        },
         extensions = {
           ['ui-select'] = {
             require('telescope.themes').get_dropdown(),
@@ -697,11 +696,13 @@ return {
 
   {
     'cameron-wags/rainbow_csv.nvim',
-    ft = { 'csv', 'tsv', 'psv' }, -- Automatically load for these file types
+    ft = { 'csv', 'tsv', 'psv', 'usv' },
     config = function()
-      -- Default configuration for rainbow_csv.nvim, you can customize this further
-      -- Example: vim.g.rainbow_csv_separators = {'\t', ',', '|'}
-      -- See :help rainbow_csv.nvim for more options after installation
+      -- Configure USV (Unicode Separated Values)
+      -- \x1f is the Unit Separator
+      vim.g.rainbow_csv_column_separators = {
+        usv = '\x1f'
+      }
     end,
   },
 
@@ -961,6 +962,37 @@ return {
   },
 
   {
+    'nvim-treesitter/nvim-treesitter-textobjects',
+    dependencies = { 'nvim-treesitter/nvim-treesitter' },
+    config = function()
+      require('nvim-treesitter.configs').setup {
+        textobjects = {
+          move = {
+            enable = true,
+            set_jumps = true, -- whether to set jumps in the jumplist
+            goto_next_start = {
+              [']m'] = '@function.outer',
+              [']]'] = '@class.outer',
+            },
+            goto_next_end = {
+              [']M'] = '@function.outer',
+              [']['] = '@class.outer',
+            },
+            goto_previous_start = {
+              ['[m'] = '@function.outer',
+              ['[['] = '@class.outer',
+            },
+            goto_previous_end = {
+              ['[M'] = '@function.outer',
+              ['[]'] = '@class.outer',
+            },
+          },
+        },
+      }
+    end,
+  },
+
+  {
     'windwp/nvim-ts-autotag',
     opts = {},
   },
@@ -975,13 +1007,21 @@ return {
     },
     keys = {
       { '<leader>e', '<cmd>Neotree toggle<CR>', desc = 'Toggle Neo-tree' },
+      { '<leader>E', '<cmd>Neotree reveal<CR>', desc = 'Reveal File in Neo-tree' },
     },
     opts = {
       filesystem = {
+        follow_current_file = {
+          enabled = true, -- This will make the tree follow your current file
+        },
         filtered_items = {
-          visible = true, -- Show filtered items in Neo-tree
+          visible = true, -- Show filtered items (dimmed)
           hide_dotfiles = false,
-          hide_git_ignored = false,
+          hide_git_ignored = true, -- This keeps the search cleaner
+          never_show = { -- These will be gone completely to keep search fast
+            '.git',
+            'node_modules',
+          },
         },
       },
     },

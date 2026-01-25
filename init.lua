@@ -94,36 +94,72 @@ vim.g.maplocalleader = ' '
 vim.filetype.add {
   extension = {
     njk = 'htmldjango',
+    usv = 'usv',
   },
 }
 
--- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = true
+-- USV Visuals: Make non-printable delimiters look nice
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'usv',
+  callback = function()
+    -- Show U+001F (US) as a thin pipe and U+001E (RS) as a record symbol
+    vim.opt_local.list = true
+    vim.opt_local.listchars:append 'conceal: '
+    -- Use \%x format for Vim regex to match hex characters correctly
+    vim.fn.matchadd('Conceal', [[\%x1f]], 10, -1, { conceal = '│' }) -- US
+    vim.fn.matchadd('Conceal', [[\%x1e]], 10, -1, { conceal = '─' }) -- RS
+    vim.opt_local.conceallevel = 2
 
--- [[ Setting options ]]
--- See `:help vim.o`
--- NOTE: You can change these options as you wish!
---  For more options, you can see `:help option-list`
+    -- Force rainbow_csv to try and highlight if it didn't start
+    -- This handles files without headers
+    vim.defer_fn(function()
+      if vim.fn.exists(':RainbowDelim') > 0 then
+        -- We manually set the delimiter to US (0x1F)
+        vim.cmd('RainbowDelimQuoted \x1f')
+      end
+    end, 100)
+  end,
+})
 
--- Make line numbers default
-vim.o.number = true
--- You can also add relative line numbers, to help with jumping.
---  Experiment for yourself to see if you like it!
--- vim.o.relativenumber = true
+-- Rapid Index Viewer: Merges all .usv files in current dir into one buffer
+vim.api.nvim_create_user_command('MergeIndices', function()
+  -- Try to find files with .usv extension
+  local files = vim.fn.glob('*.usv', false, true)
+  if #files == 0 then
+    print('No .usv files found in current directory.')
+    return
+  end
 
--- Enable mouse mode, can be useful for resizing splits for example!
-vim.o.mouse = 'a'
+  local lines = {}
+  for _, file in ipairs(files) do
+    local f = io.open(file, 'rb') -- Open in binary mode to handle Unicode safely
+    if f then
+      local content = f:read('*all')
+      -- Remove trailing newlines/separators to keep it compact
+      content = content:gsub('[\n\r]+$', '')
+      table.insert(lines, content)
+      f:close()
+    end
+  end
 
--- Don't show the mode, since it's already in the status line
-vim.o.showmode = false
+  -- Create a new scratch buffer
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  
+  -- Set filetype FIRST so the autocmd can fire
+  vim.api.nvim_buf_set_option(buf, 'filetype', 'usv')
+  vim.api.nvim_buf_set_option(buf, 'buftype', 'nofile')
+  vim.api.nvim_buf_set_name(buf, 'MERGED_INDICES')
+
+  -- Open the buffer in a new split
+  vim.cmd('split')
+  vim.api.nvim_set_current_buf(buf)
+end, {})
 
 -- Sync clipboard between OS and Neovim.
---  Schedule the setting after `UiEnter` because it can increase startup-time.
 --  Remove this option if you want your OS clipboard to remain independent.
 --  See `:help 'clipboard'`
-vim.schedule(function()
-  vim.o.clipboard = 'unnamedplus'
-end)
+vim.opt.clipboard = 'unnamedplus'
 
 -- Enable break indent
 vim.o.breakindent = true
@@ -164,6 +200,12 @@ vim.o.inccommand = 'split'
 
 -- Show which line your cursor is on
 vim.o.cursorline = true
+
+-- Make line numbers default
+vim.o.number = true
+-- You can also add relative line numbers, to help with jumping.
+--  Experiment for yourself to see if you like it!
+vim.o.relativenumber = true
 
 -- Minimal number of screen lines to keep above and below the cursor.
 vim.o.scrolloff = 10
