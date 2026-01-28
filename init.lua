@@ -98,17 +98,78 @@ vim.filetype.add {
   },
 }
 
+-- Robust XLSX Editing via CLI Tools
+local xlsx_tmp_dir = nil
+local original_xlsx_path = nil
+
+vim.api.nvim_create_user_command('XlsxExtract', function()
+  original_xlsx_path = vim.fn.expand('%:p')
+  if original_xlsx_path == '' or vim.fn.fnamemodify(original_xlsx_path, ':e') ~= 'xlsx' then
+    print('Not an XLSX file.')
+    return
+  end
+
+  xlsx_tmp_dir = vim.fn.tempname()
+  vim.fn.mkdir(xlsx_tmp_dir, 'p')
+  
+  -- Unzip to tmp
+  vim.fn.system(string.format('unzip "%s" -d "%s"', original_xlsx_path, xlsx_tmp_dir))
+  
+  -- Open Neo-tree in the tmp directory
+  vim.cmd(string.format('Neotree %s', xlsx_tmp_dir))
+  print('Extracted to: ' .. xlsx_tmp_dir .. ' | Use :XlsxPack to save changes.')
+end, {})
+
+vim.api.nvim_create_user_command('XlsxPack', function()
+  if not xlsx_tmp_dir or not original_xlsx_path then
+    print('No active XLSX session found.')
+    return
+  end
+
+  -- Zip it back up
+  -- -j is not used because we need to preserve the directory structure
+  local cmd = string.format('cd "%s" && zip -r "%s" .', xlsx_tmp_dir, original_xlsx_path)
+  vim.fn.system(cmd)
+  print('Saved changes back to: ' .. original_xlsx_path)
+end, {})
+
+-- Format XML using python3 (useful for XLSX internal XML)
+vim.api.nvim_create_user_command('FormatXML', function()
+  vim.cmd('silent %!python3 -c "import xml.dom.minidom, sys; print(xml.dom.minidom.parseString(sys.stdin.read().encode(\'utf-8\')).toprettyxml())"')
+  vim.bo.filetype = 'xml'
+  vim.bo.buftype = ''
+  vim.bo.readonly = false
+end, {})
+
 -- USV Visuals: Make non-printable delimiters look nice
 vim.api.nvim_create_autocmd('FileType', {
   pattern = 'usv',
   callback = function()
-    -- Show U+001F (US) as a thin pipe and U+001E (RS) as a record symbol
+    -- Define a custom highlight group for delimiters and map it to Conceal locally
+    vim.cmd 'highlight UsvDelimiter guifg=Cyan'
+    vim.opt_local.winhighlight = 'Conceal:UsvDelimiter'
+
+    -- Show U+001F (US) as ␟ and U+001E (RS) as ␞
     vim.opt_local.list = true
     vim.opt_local.listchars:append 'conceal: '
     -- Use \%x format for Vim regex to match hex characters correctly
-    vim.fn.matchadd('Conceal', [[\%x1f]], 10, -1, { conceal = '│' }) -- US
-    vim.fn.matchadd('Conceal', [[\%x1e]], 10, -1, { conceal = '─' }) -- RS
+    -- We use 'Conceal' group here, which winhighlight maps to 'UsvDelimiter'
+    vim.fn.matchadd('Conceal', [[\%x1f]], 10, -1, { conceal = '␟' }) -- US
+    vim.fn.matchadd('Conceal', [[\%x1e]], 10, -1, { conceal = '␞' }) -- RS
     vim.opt_local.conceallevel = 2
+
+    -- Look for _headers.csv in the same directory to get field names
+    local header_file = vim.fn.expand('%:p:h') .. '/_headers.csv'
+    if vim.fn.filereadable(header_file) == 1 then
+      local h = io.open(header_file, 'r')
+      if h then
+        local header_line = h:read('*l')
+        h:close()
+        if header_line then
+          vim.b.rainbow_csv_header = header_line
+        end
+      end
+    end
 
     -- Force rainbow_csv to try and highlight if it didn't start
     -- This handles files without headers

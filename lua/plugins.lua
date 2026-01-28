@@ -701,7 +701,7 @@ return {
       -- Configure USV (Unicode Separated Values)
       -- \x1f is the Unit Separator
       vim.g.rainbow_csv_column_separators = {
-        usv = '\x1f'
+        usv = '\x1f',
       }
     end,
   },
@@ -1015,12 +1015,27 @@ return {
           enabled = true, -- This will make the tree follow your current file
         },
         filtered_items = {
-          visible = true, -- Show filtered items (dimmed)
+          visible = true, -- Keep dimmed items visible for manual navigation
           hide_dotfiles = false,
-          hide_git_ignored = true, -- This keeps the search cleaner
-          never_show = { -- These will be gone completely to keep search fast
+          hide_git_ignored = true, -- Hide git-ignored items from search, but keep them visible (dimmed) in the tree
+          never_show = {
             '.git',
             'node_modules',
+            '.ds_store',
+          },
+        },
+        find_command = 'fd', -- Use fd for searching (respects .gitignore by default)
+        find_args = {
+          fd = {
+            '--exclude', '.git',
+            '--exclude', 'node_modules',
+          }
+        },
+        find_by_full_path_words = true, -- Better path-based fuzzy searching
+        window = {
+          mappings = {
+            ['f'] = 'fuzzy_finder',
+            ['/'] = 'fuzzy_finder',
           },
         },
       },
