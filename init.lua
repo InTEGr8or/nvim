@@ -146,7 +146,7 @@ vim.api.nvim_create_autocmd('FileType', {
   pattern = 'usv',
   callback = function()
     -- Define a custom highlight group for delimiters and map it to Conceal locally
-    vim.cmd 'highlight UsvDelimiter guifg=Cyan'
+    vim.cmd 'highlight UsvDelimiter guifg=Teal guibg=#00004d'
     vim.opt_local.winhighlight = 'Conceal:UsvDelimiter'
 
     -- Show U+001F (US) as ␟ and U+001E (RS) as ␞
@@ -157,19 +157,95 @@ vim.api.nvim_create_autocmd('FileType', {
     vim.fn.matchadd('Conceal', [[\%x1f]], 10, -1, { conceal = '␟' }) -- US
     vim.fn.matchadd('Conceal', [[\%x1e]], 10, -1, { conceal = '␞' }) -- RS
     vim.opt_local.conceallevel = 2
+    vim.opt_local.concealcursor = 'nv' -- Keep concealed in Normal and Visual modes
 
-    -- Look for _headers.csv in the same directory to get field names
-    local header_file = vim.fn.expand('%:p:h') .. '/_headers.csv'
-    if vim.fn.filereadable(header_file) == 1 then
-      local h = io.open(header_file, 'r')
-      if h then
-        local header_line = h:read('*l')
-        h:close()
-        if header_line then
-          vim.b.rainbow_csv_header = header_line
-        end
+    -- Navigation: ( and ) for unit separators
+    vim.keymap.set('n', ')', '/\\%x1f<CR>', { buffer = true, silent = true, desc = 'Next Unit' })
+    vim.keymap.set('n', '(', '?\\%x1f<CR>', { buffer = true, silent = true, desc = 'Prev Unit' })
+
+    -- Treat Record Separator as a newline for editing
+    local function RS_to_newline()
+      local view = vim.fn.winsaveview()
+      -- Replace RS with RS + newline if not already followed by one
+      vim.cmd([[silent! %s/\%x1e\n\?/\%x1e\r/g]])
+      vim.fn.winrestview(view)
+      vim.bo.modified = false
+    end
+
+    RS_to_newline()
+
+    vim.api.nvim_create_autocmd('BufWritePre', {
+      buffer = 0,
+      callback = function()
+        -- Strip the newlines we added before saving
+        vim.cmd([[silent! %s/\%x1e\n/\%x1e/g]])
+      end,
+    })
+
+    vim.api.nvim_create_autocmd('BufWritePost', {
+      buffer = 0,
+      callback = RS_to_newline,
+    })
+
+    -- Keymaps to insert delimiters easily in Insert mode
+    vim.keymap.set('i', '<M-u>', '\x1f', { buffer = true, desc = 'Insert Unit Separator' })
+    vim.keymap.set('i', '<M-r>', '\x1e', { buffer = true, desc = 'Insert Record Separator' })
+
+    -- Function to show the field name based on headers
+    local function show_field_name()
+      local headers = vim.b.usv_headers
+      if not headers then
+        vim.api.nvim_echo({ { 'No headers found', 'WarningMsg' } }, false, {})
+        return
+      end
+
+      local line = vim.api.nvim_get_current_line()
+      local col = vim.api.nvim_win_get_cursor(0)[2]
+      local prefix = line:sub(1, col)
+      local _, count = prefix:gsub('\x1f', '')
+      local index = count + 1
+
+      if headers[index] then
+        vim.api.nvim_echo({ { 'Field [' .. index .. ']: ', 'Label' }, { headers[index], 'Special' } }, false, {})
+      else
+        vim.api.nvim_echo({ { 'Field [' .. index .. ']', 'Label' } }, false, {})
       end
     end
+
+    vim.keymap.set('n', 'gh', show_field_name, { buffer = true, desc = 'Show USV field name' })
+
+    -- Header detection logic
+    local function set_usv_headers()
+      -- Fallback to _header.usv in the same directory
+      local fallback_file = vim.fn.expand('%:p:h') .. '/_header.usv'
+      local header_line = nil
+
+      if vim.fn.filereadable(fallback_file) == 1 then
+        local f = io.open(fallback_file, 'r')
+        if f then
+          header_line = f:read('*l')
+          f:close()
+        end
+      end
+
+      -- Primary: If no _header.usv, use the first line of the buffer
+      if not header_line then
+        header_line = vim.api.nvim_buf_get_lines(0, 0, 1, false)[1]
+      end
+
+      if header_line then
+        local t = {}
+        -- USV is delimited by \x1f
+        for s in string.gmatch(header_line .. '\x1f', '(.-)\x1f') do
+          table.insert(t, s)
+        end
+        vim.b.usv_headers = t
+        -- Also set rainbow_csv_header for the plugin, converting back to comma for its internal use
+        vim.b.rainbow_csv_header = table.concat(t, ',')
+      end
+    end
+
+    set_usv_headers()
 
     -- Force rainbow_csv to try and highlight if it didn't start
     -- This handles files without headers
