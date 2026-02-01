@@ -133,6 +133,22 @@ vim.api.nvim_create_user_command('XlsxPack', function()
   print('Saved changes back to: ' .. original_xlsx_path)
 end, {})
 
+-- Generic Unzip command
+vim.api.nvim_create_user_command('Unzip', function()
+  local file = vim.fn.expand('%:p')
+  if file == '' or vim.fn.fnamemodify(file, ':e') ~= 'zip' then
+    print('Not a zip file.')
+    return
+  end
+
+  local dest = vim.fn.fnamemodify(file, ':r')
+  vim.fn.mkdir(dest, 'p')
+  vim.fn.system(string.format('unzip "%s" -d "%s"', file, dest))
+  print('Unzipped to: ' .. dest)
+  -- Open the directory in Neo-tree
+  vim.cmd(string.format('Neotree %s', dest))
+end, {})
+
 -- Format XML using python3 (useful for XLSX internal XML)
 vim.api.nvim_create_user_command('FormatXML', function()
   vim.cmd('silent %!python3 -c "import xml.dom.minidom, sys; print(xml.dom.minidom.parseString(sys.stdin.read().encode(\'utf-8\')).toprettyxml())"')
@@ -145,19 +161,25 @@ end, {})
 vim.api.nvim_create_autocmd('FileType', {
   pattern = 'usv',
   callback = function()
-    -- Define a custom highlight group for delimiters and map it to Conceal locally
-    vim.cmd 'highlight UsvDelimiter guifg=Teal guibg=#00004d'
-    vim.opt_local.winhighlight = 'Conceal:UsvDelimiter'
+    -- Define custom highlight groups with hex codes for reliability
+    vim.api.nvim_set_hl(0, 'UsvUnit', { fg = '#1abc9c', bg = '#00004d', bold = true })
+    vim.api.nvim_set_hl(0, 'UsvRecord', { fg = '#e0af68', bg = '#00004d', bold = true })
 
-    -- Show U+001F (US) as ␟ and U+001E (RS) as ␞
-    vim.opt_local.list = true
-    vim.opt_local.listchars:append 'conceal: '
-    -- Use \%x format for Vim regex to match hex characters correctly
-    -- We use 'Conceal' group here, which winhighlight maps to 'UsvDelimiter'
-    vim.fn.matchadd('Conceal', [[\%x1f]], 10, -1, { conceal = '␟' }) -- US
-    vim.fn.matchadd('Conceal', [[\%x1e]], 10, -1, { conceal = '␞' }) -- RS
+    -- Display settings
+    vim.opt_local.list = false
     vim.opt_local.conceallevel = 2
-    vim.opt_local.concealcursor = 'nv' -- Keep concealed in Normal and Visual modes
+    vim.opt_local.concealcursor = 'nv'
+    
+    -- Clear any existing matches to prevent duplicates on reload
+    for _, match in ipairs(vim.fn.getmatches()) do
+      if match.group == 'UsvUnit' or match.group == 'UsvRecord' then
+        vim.fn.matchdelete(match.id)
+      end
+    end
+
+    -- Add matches with high priority to sit on top of syntax
+    vim.fn.matchadd('UsvUnit', [[\%x1f]], 100, -1, { conceal = '␟' })
+    vim.fn.matchadd('UsvRecord', [[\%x1e]], 100, -1, { conceal = '␞' })
 
     -- Navigation: ( and ) for unit separators
     vim.keymap.set('n', ')', '/\\%x1f<CR>', { buffer = true, silent = true, desc = 'Next Unit' })
@@ -166,8 +188,10 @@ vim.api.nvim_create_autocmd('FileType', {
     -- Treat Record Separator as a newline for editing
     local function RS_to_newline()
       local view = vim.fn.winsaveview()
+      -- Fix any literal "%x1e" strings that might have been introduced by previous buggy version
+      vim.cmd([[silent! %s/%x1e/\=nr2char(30)/g]])
       -- Replace RS with RS + newline if not already followed by one
-      vim.cmd([[silent! %s/\%x1e\n\?/\%x1e\r/g]])
+      vim.cmd([[silent! %s/\%x1e\n\?/\=nr2char(30) . "\r"/g]])
       vim.fn.winrestview(view)
       vim.bo.modified = false
     end
@@ -178,7 +202,7 @@ vim.api.nvim_create_autocmd('FileType', {
       buffer = 0,
       callback = function()
         -- Strip the newlines we added before saving
-        vim.cmd([[silent! %s/\%x1e\n/\%x1e/g]])
+        vim.cmd([[silent! %s/\%x1e\n/\=nr2char(30)/g]])
       end,
     })
 
@@ -255,6 +279,43 @@ vim.api.nvim_create_autocmd('FileType', {
         vim.cmd('RainbowDelimQuoted \x1f')
       end
     end, 100)
+  end,
+})
+
+-- CSV/TSV Helpers: Navigation and Header display
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'csv', 'tsv' },
+  callback = function()
+    local delim = vim.bo.filetype == 'tsv' and '\t' or ','
+    
+    -- Navigation: ( and ) for fields
+    vim.keymap.set('n', ')', '/[' .. delim .. ']<CR>', { buffer = true, silent = true, desc = 'Next Field' })
+    vim.keymap.set('n', '(', '?[' .. delim .. ']<CR>', { buffer = true, silent = true, desc = 'Prev Field' })
+
+    -- Function to show the field name
+    local function show_field_name()
+      local first_line = vim.api.nvim_buf_get_lines(0, 0, 1, false)[1]
+      if not first_line then return end
+
+      local headers = {}
+      for s in string.gmatch(first_line .. delim, '(.-)' .. delim) do
+        table.insert(headers, s:gsub('^%s*(.-)%s*$', '%1')) -- trim
+      end
+
+      local line = vim.api.nvim_get_current_line()
+      local col = vim.api.nvim_win_get_cursor(0)[2]
+      local prefix = line:sub(1, col)
+      local _, count = prefix:gsub(delim, '')
+      local index = count + 1
+
+      if headers[index] then
+        vim.api.nvim_echo({ { 'Field [' .. index .. ']: ', 'Label' }, { headers[index], 'Special' } }, false, {})
+      else
+        vim.api.nvim_echo({ { 'Field [' .. index .. ']', 'Label' } }, false, {})
+      end
+    end
+
+    vim.keymap.set('n', 'gh', show_field_name, { buffer = true, desc = 'Show CSV field name' })
   end,
 })
 
@@ -393,7 +454,7 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
-vim.keymap.set('n', '<leader>yR', function()
+vim.keymap.set('n', '<leader>yr', function()
   local utils = require('custom.utils')
   vim.fn.setreg('+', utils.get_git_relative_path())
 end, { desc = 'Copy Git root relative file path to clipboard' })
@@ -464,7 +525,7 @@ require('lazy').setup(require 'plugins', {
   },
 })
 
-vim.keymap.set('n', '<leader>yf', ":lua vim.fn.setreg('+', vim.fn.expand('%:p'))<CR>", { desc = 'Copy current file path to clipboard' })
+vim.keymap.set('n', '<leader>yR', ":lua vim.fn.setreg('+', vim.fn.expand('%:p'))<CR>", { desc = 'Copy current file path to clipboard' })
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et

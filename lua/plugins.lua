@@ -30,6 +30,11 @@ return {
   -- options to `gitsigns.nvim`.
   --
   -- See `:help gitsigns` to understand what the configuration keys do
+  { -- Git related plugins
+    'tpope/vim-fugitive',
+    cmd = { 'G', 'Git' },
+  },
+
   { -- Adds git related signs to the gutter, as well as utilities for managing changes
     'lewis6991/gitsigns.nvim',
     opts = {
@@ -1027,9 +1032,17 @@ return {
         find_command = 'fd', -- Use fd for searching (respects .gitignore by default)
         find_args = {
           fd = {
-            '--exclude', '.git',
-            '--exclude', 'node_modules',
-          }
+            '--exclude',
+            '.git',
+            '--exclude',
+            'node_modules',
+            '--exclude',
+            '.mypy_cache',
+            '--exclude',
+            '.venv',
+            '--exclude',
+            '__pycache__',
+          },
         },
         find_by_full_path_words = true, -- Better path-based fuzzy searching
         window = {
