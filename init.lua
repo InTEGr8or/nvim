@@ -161,25 +161,20 @@ end, {})
 vim.api.nvim_create_autocmd('FileType', {
   pattern = 'usv',
   callback = function()
-    -- Define custom highlight groups with hex codes for reliability
-    vim.api.nvim_set_hl(0, 'UsvUnit', { fg = '#1abc9c', bg = '#00004d', bold = true })
-    vim.api.nvim_set_hl(0, 'UsvRecord', { fg = '#e0af68', bg = '#00004d', bold = true })
+    -- Define a custom highlight group for delimiters and map it to Conceal locally
+    -- Using the exact setup from the working HEAD~1 version
+    vim.cmd 'highlight UsvDelimiter guifg=Teal guibg=#00004d'
+    vim.opt_local.winhighlight = 'Conceal:UsvDelimiter'
 
-    -- Display settings
-    vim.opt_local.list = false
+    -- Show U+001F (US) as ␟ and U+001E (RS) as ␞
+    vim.opt_local.list = true
+    vim.opt_local.listchars:append 'conceal: '
+    -- Use \%x format for Vim regex to match hex characters correctly
+    -- We use 'Conceal' group here, which winhighlight maps to 'UsvDelimiter'
+    vim.fn.matchadd('Conceal', [[\%x1f]], 10, -1, { conceal = '␟' }) -- US
+    vim.fn.matchadd('Conceal', [[\%x1e]], 10, -1, { conceal = '␞' }) -- RS
     vim.opt_local.conceallevel = 2
-    vim.opt_local.concealcursor = 'nv'
-    
-    -- Clear any existing matches to prevent duplicates on reload
-    for _, match in ipairs(vim.fn.getmatches()) do
-      if match.group == 'UsvUnit' or match.group == 'UsvRecord' then
-        vim.fn.matchdelete(match.id)
-      end
-    end
-
-    -- Add matches with high priority to sit on top of syntax
-    vim.fn.matchadd('UsvUnit', [[\%x1f]], 100, -1, { conceal = '␟' })
-    vim.fn.matchadd('UsvRecord', [[\%x1e]], 100, -1, { conceal = '␞' })
+    vim.opt_local.concealcursor = 'nv' -- Keep concealed in Normal and Visual modes
 
     -- Navigation: ( and ) for unit separators
     vim.keymap.set('n', ')', '/\\%x1f<CR>', { buffer = true, silent = true, desc = 'Next Unit' })
@@ -455,9 +450,11 @@ vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower win
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
 vim.keymap.set('n', '<leader>yr', function()
-  local utils = require('custom.utils')
-  vim.fn.setreg('+', utils.get_git_relative_path())
-end, { desc = 'Copy Git root relative file path to clipboard' })
+  local path = vim.fn.expand('%:p')
+  local rel = vim.fn.fnamemodify(path, ':.')
+  vim.fn.setreg('+', rel)
+  print('Copied: ' .. rel)
+end, { desc = 'Copy relative path (NeoTree root)' })
 
 -- NOTE: Some terminals have colliding keymaps or are not able to send distinct keycodes
 -- vim.keymap.set("n", "<C-S-h>", "<C-w>H", { desc = "Move window to the left" })
