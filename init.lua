@@ -161,18 +161,30 @@ end, {})
 vim.api.nvim_create_autocmd('FileType', {
   pattern = 'usv',
   callback = function()
-    -- Define a custom highlight group for delimiters and map it to Conceal locally
-    -- Using the exact setup from the working HEAD~1 version
-    vim.cmd 'highlight UsvDelimiter guifg=Teal guibg=#00004d'
-    vim.opt_local.winhighlight = 'Conceal:UsvDelimiter'
+    -- Define custom highlight groups
+    vim.cmd 'highlight UsvUnit guifg=#1abc9c guibg=#00004d'
+    vim.cmd 'highlight UsvRecord guifg=#e0af68 guibg=#00004d'
+    
+    -- Map Conceal to UsvUnit locally for the Teal color
+    vim.opt_local.winhighlight = 'Conceal:UsvUnit'
 
     -- Show U+001F (US) as ␟ and U+001E (RS) as ␞
     vim.opt_local.list = true
     vim.opt_local.listchars:append 'conceal: '
-    -- Use \%x format for Vim regex to match hex characters correctly
-    -- We use 'Conceal' group here, which winhighlight maps to 'UsvDelimiter'
-    vim.fn.matchadd('Conceal', [[\%x1f]], 10, -1, { conceal = '␟' }) -- US
-    vim.fn.matchadd('Conceal', [[\%x1e]], 10, -1, { conceal = '␞' }) -- RS
+    
+    -- Clear any existing matches
+    for _, match in ipairs(vim.fn.getmatches()) do
+      if match.group == 'Conceal' or match.group == 'UsvRecord' then
+        vim.fn.matchdelete(match.id)
+      end
+    end
+
+    -- We use 'Conceal' group for Unit (gets Teal via winhighlight)
+    -- We use 'UsvRecord' group for Record (gets Yellow directly)
+    -- Priority 100 ensures they sit on top of other syntax
+    vim.fn.matchadd('Conceal', [[\%x1f]], 100, -1, { conceal = '␟' })
+    vim.fn.matchadd('UsvRecord', [[\%x1e]], 101, -1, { conceal = '␞' })
+    
     vim.opt_local.conceallevel = 2
     vim.opt_local.concealcursor = 'nv' -- Keep concealed in Normal and Visual modes
 

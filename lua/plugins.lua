@@ -1029,6 +1029,19 @@ return {
             '.ds_store',
           },
         },
+        -- Limit large directories for performance
+        filter = function(name, path)
+          local state = require('neo-tree.sources.manager').get_state('filesystem')
+          local root = state.path
+          if root:find 'indexes' or root:find 'queues' then
+            -- We use a simple counter attached to the state to limit items
+            state.limit_count = (state.limit_count or 0) + 1
+            if state.limit_count > 30 then
+              return false
+            end
+          end
+          return true
+        end,
         find_command = 'fd', -- Use fd for searching (respects .gitignore by default)
         find_args = {
           fd = {
@@ -1049,6 +1062,19 @@ return {
           mappings = {
             ['f'] = 'fuzzy_finder',
             ['/'] = 'fuzzy_finder',
+          },
+        },
+        event_handlers = {
+          {
+            event = 'neo_tree_directory_opened',
+            handler = function(args)
+              local state = require('neo-tree.sources.manager').get_state('filesystem')
+              state.limit_count = 0 -- Reset counter on every directory open
+              local path = args.path
+              if path:find 'indexes' or path:find 'queues' then
+                vim.notify('Large directory: Limiting view to first 30 items for performance.', vim.log.levels.WARN)
+              end
+            end,
           },
         },
       },
