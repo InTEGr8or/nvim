@@ -946,10 +946,6 @@ return {
     build = 'cd app && npm install',
     init = function()
       vim.g.mkdp_filetypes = { 'markdown', 'mermaid' }
-      -- Enable Mermaid support
-      vim.g.mkdp_preview_options = {
-        mermaid = {},
-      }
     end,
     ft = { 'markdown', 'mermaid' },
     keys = {
