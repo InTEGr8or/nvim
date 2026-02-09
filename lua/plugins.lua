@@ -940,6 +940,23 @@ return {
       }
     end,
   },
+  {
+    'iamcco/markdown-preview.nvim',
+    cmd = { 'MarkdownPreviewToggle', 'MarkdownPreview', 'MarkdownPreviewStop' },
+    build = 'cd app && npm install',
+    init = function()
+      vim.g.mkdp_filetypes = { 'markdown' }
+      -- Enable Mermaid support
+      vim.g.mkdp_preview_options = {
+        mermaid = {},
+      }
+    end,
+    ft = { 'markdown', 'mermaid' },
+    keys = {
+      { '<leader>mp', '<cmd>MarkdownPreviewToggle<CR>', desc = 'Toggle [M]arkdown [P]review' },
+    },
+  },
+
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',

@@ -95,6 +95,8 @@ vim.filetype.add {
   extension = {
     njk = 'htmldjango',
     usv = 'usv',
+    mmd = 'mermaid',
+    mermaid = 'mermaid',
   },
 }
 
