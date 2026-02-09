@@ -945,7 +945,7 @@ return {
     cmd = { 'MarkdownPreviewToggle', 'MarkdownPreview', 'MarkdownPreviewStop' },
     build = 'cd app && npm install',
     init = function()
-      vim.g.mkdp_filetypes = { 'markdown' }
+      vim.g.mkdp_filetypes = { 'markdown', 'mermaid' }
       -- Enable Mermaid support
       vim.g.mkdp_preview_options = {
         mermaid = {},
