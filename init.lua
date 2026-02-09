@@ -247,32 +247,55 @@ vim.api.nvim_create_autocmd('FileType', {
 
     -- Header detection logic
     local function set_usv_headers()
-      -- Fallback to _header.usv in the same directory
-      local fallback_file = vim.fn.expand('%:p:h') .. '/_header.usv'
+      local current_file = vim.api.nvim_buf_get_name(0)
       local header_line = nil
+      local headers = nil
 
-      if vim.fn.filereadable(fallback_file) == 1 then
-        local f = io.open(fallback_file, 'r')
+      -- Frictionless Data: Search for datapackage.json up the tree
+      local datapackage_path = vim.fs.find('datapackage.json', { upward = true, path = vim.fn.fnamemodify(current_file, ':p:h') })[1]
+
+      if datapackage_path then
+        local f = io.open(datapackage_path, 'r')
         if f then
-          header_line = f:read('*l')
+          local content = f:read '*a'
           f:close()
+          local ok, datapackage = pcall(vim.json.decode, content)
+          if ok and datapackage.resources then
+            -- Find the resource matching the current file
+            local package_root = vim.fn.fnamemodify(datapackage_path, ':p:h')
+            for _, resource in ipairs(datapackage.resources) do
+              if resource.path then
+                local resource_full_path = package_root .. '/' .. resource.path
+                if vim.fn.simplify(resource_full_path) == vim.fn.simplify(current_file) then
+                  if resource.schema and resource.schema.fields then
+                    headers = {}
+                    for _, field in ipairs(resource.schema.fields) do
+                      table.insert(headers, field.name or '')
+                    end
+                    break
+                  end
+                end
+              end
+            end
+          end
         end
       end
 
-      -- Primary: If no _header.usv, use the first line of the buffer
-      if not header_line then
+      -- Primary: If no datapackage.json or no match found, use the first line of the buffer
+      if not headers then
         header_line = vim.api.nvim_buf_get_lines(0, 0, 1, false)[1]
+        if header_line then
+          headers = {}
+          for s in string.gmatch(header_line .. '\x1f', '(.-)\x1f') do
+            table.insert(headers, s)
+          end
+        end
       end
 
-      if header_line then
-        local t = {}
-        -- USV is delimited by \x1f
-        for s in string.gmatch(header_line .. '\x1f', '(.-)\x1f') do
-          table.insert(t, s)
-        end
-        vim.b.usv_headers = t
+      if headers then
+        vim.b.usv_headers = headers
         -- Also set rainbow_csv_header for the plugin, converting back to comma for its internal use
-        vim.b.rainbow_csv_header = table.concat(t, ',')
+        vim.b.rainbow_csv_header = table.concat(headers, ',')
       end
     end
 
@@ -361,6 +384,35 @@ vim.api.nvim_create_user_command('MergeIndices', function()
   vim.api.nvim_set_current_buf(buf)
 end, {})
 
+-- Convert CSV to USV using Python's csv module for robust parsing
+vim.api.nvim_create_user_command('CsvToUsv', function()
+  local old_path = vim.api.nvim_buf_get_name(0)
+
+  -- Using python3 to safely handle CSV quoting
+  local cmd = [[python3 -c "import csv, sys; reader = csv.reader(sys.stdin); writer = csv.writer(sys.stdout, delimiter='\x1f', quoting=csv.QUOTE_NONE, escapechar='\\'); [writer.writerow(row) for row in reader]"]]
+  vim.cmd('silent %!' .. cmd)
+  vim.bo.filetype = 'usv'
+
+  if old_path ~= '' and old_path:match '%.csv$' then
+    local new_path = old_path:gsub('%.csv$', '.usv')
+
+    -- Save the buffer to the new .usv path
+    vim.cmd('saveas! ' .. vim.fn.fnameescape(new_path))
+
+    -- Remove the old .csv file
+    local success, err = os.remove(old_path)
+    if success then
+      print('Converted and renamed to ' .. vim.fn.fnamemodify(new_path, ':t'))
+    else
+      print('Converted to USV, but failed to remove old file: ' .. (err or 'unknown error'))
+    end
+  else
+    print('Converted buffer to USV')
+  end
+end, { desc = 'Convert current CSV buffer to USV and rename .csv to .usv' })
+
+vim.keymap.set('n', '<leader>C', '<cmd>CsvToUsv<CR>', { desc = '[C]onvert CSV to USV' })
+
 -- Sync clipboard between OS and Neovim.
 --  Remove this option if you want your OS clipboard to remain independent.
 --  See `:help 'clipboard'`
@@ -437,6 +489,9 @@ vim.keymap.set({ 'i', 'v' }, '<M-s>', '<Esc>', { desc = 'Alt+s as Escape' })
 
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+
+-- Toggle word wrap
+vim.keymap.set('n', '<leader>tw', '<cmd>set wrap!<CR>', { desc = '[T]oggle [W]ord Wrap' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
