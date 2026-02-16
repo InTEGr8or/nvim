@@ -190,9 +190,15 @@ vim.api.nvim_create_autocmd('FileType', {
     vim.opt_local.conceallevel = 2
     vim.opt_local.concealcursor = 'nv' -- Keep concealed in Normal and Visual modes
 
-    -- Navigation: ( and ) for unit separators, jumping to content
-    vim.keymap.set('n', ')', '/\\%x1f/e+1<CR>', { buffer = true, silent = true, desc = 'Next Unit Content' })
-    vim.keymap.set('n', '(', '?\\%x1f?e+1<CR>', { buffer = true, silent = true, desc = 'Prev Unit Content' })
+    -- Navigation: ( and ) for field boundaries
+    vim.keymap.set('n', ')', [[/\%x1f/e+1<CR>]], { buffer = true, silent = true, desc = 'Next Field Content' })
+    vim.keymap.set('n', '(', [[?\%x1f\|^?e+1<CR>]], { buffer = true, silent = true, desc = 'Prev Field Content' })
+
+    -- Text objects: if (inner field) and af (around field)
+    -- inner field: content between delimiters
+    vim.keymap.set({ 'o', 'x' }, 'if', [[:<C-u>call search('\%x1f\|$', 'W')<CR>v?\%x1f\|^?e+1<CR>o]], { buffer = true, silent = true, desc = 'inner field' })
+    -- around field: content plus leading delimiter
+    vim.keymap.set({ 'o', 'x' }, 'af', [[:<C-u>call search('\%x1f\|$', 'W')<CR>v?\%x1f\|^?<CR>o]], { buffer = true, silent = true, desc = 'around field' })
 
     -- Treat Record Separator as a newline for editing
     local function RS_to_newline()
@@ -429,6 +435,12 @@ vim.o.undofile = true
 -- Case-insensitive searching UNLESS \C or one or more capital letters in the search term
 vim.o.ignorecase = true
 vim.o.smartcase = true
+
+-- Reload configuration
+vim.keymap.set('n', '<leader>sv', '<cmd>luafile $MYVIMRC<CR>', { desc = '[S]ource [V]imrc (reload config)' })
+
+-- Quick quit all
+vim.keymap.set('n', '<leader>qq', '<cmd>qa<CR>', { desc = '[Q]uit [Q]uantum (all)' })
 
 -- Keep signcolumn on by default
 vim.o.signcolumn = 'yes'
