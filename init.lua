@@ -386,13 +386,13 @@ vim.api.nvim_create_user_command('MergeIndices', function()
   vim.api.nvim_set_current_buf(buf)
 end, {})
 
--- Convert CSV to USV using Python's csv module for robust parsing
+-- Convert CSV to USV using our Lua script for robust parsing
 vim.api.nvim_create_user_command('CsvToUsv', function()
   local old_path = vim.api.nvim_buf_get_name(0)
+  local script_path = vim.fn.stdpath 'config' .. '/csv-to-usv.lua'
 
-  -- Using python3 to safely handle CSV quoting
-  local cmd = [[python3 -c "import csv, sys; reader = csv.reader(sys.stdin); writer = csv.writer(sys.stdout, delimiter='\x1f', quoting=csv.QUOTE_NONE, escapechar='\\'); [writer.writerow(row) for row in reader]"]]
-  vim.cmd('silent %!' .. cmd)
+  -- Run the Lua script on the current buffer
+  vim.cmd('silent %!lua ' .. vim.fn.shellescape(script_path))
   vim.bo.filetype = 'usv'
 
   if old_path ~= '' and old_path:match '%.csv$' then
