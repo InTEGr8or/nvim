@@ -190,9 +190,9 @@ vim.api.nvim_create_autocmd('FileType', {
     vim.opt_local.conceallevel = 2
     vim.opt_local.concealcursor = 'nv' -- Keep concealed in Normal and Visual modes
 
-    -- Navigation: ( and ) for unit separators
-    vim.keymap.set('n', ')', '/\\%x1f<CR>', { buffer = true, silent = true, desc = 'Next Unit' })
-    vim.keymap.set('n', '(', '?\\%x1f<CR>', { buffer = true, silent = true, desc = 'Prev Unit' })
+    -- Navigation: ( and ) for unit separators, jumping to content
+    vim.keymap.set('n', ')', '/\\%x1f/e+1<CR>', { buffer = true, silent = true, desc = 'Next Unit Content' })
+    vim.keymap.set('n', '(', '?\\%x1f?e+1<CR>', { buffer = true, silent = true, desc = 'Prev Unit Content' })
 
     -- Treat Record Separator as a newline for editing
     local function RS_to_newline()
