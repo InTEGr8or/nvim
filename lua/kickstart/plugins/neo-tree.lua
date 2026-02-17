@@ -21,6 +21,14 @@ return {
         ['K'] = 'prev_sibling',
         ['j'] = 'none',
         ['k'] = 'none',
+        ['<leader>gv'] = function() vim.cmd('DiffviewOpen') end,
+        ['<leader>gh'] = function() vim.cmd('DiffviewFileHistory') end,
+        ['<leader>gf'] = function(state)
+          local node = state.tree:get_node()
+          if node then
+            vim.cmd('DiffviewFileHistory ' .. vim.fn.fnameescape(node.path))
+          end
+        end,
         ['h'] = function(state)
           local node = state.tree:get_node()
           if node and node.level > 0 then
