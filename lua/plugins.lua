@@ -60,6 +60,23 @@ return {
       end
       require('diffview').setup {
         use_icons = vim.g.have_nerd_font,
+        keymaps = {
+          view = {
+            { 'n', 'gf', '<cmd>DiffviewClose<CR>', { desc = 'Close Diffview and return' } },
+          },
+          file_panel = {
+            { 'n', 'gf', function()
+              require("diffview.actions").goto_file_edit()
+              vim.cmd("DiffviewClose")
+            end, { desc = 'Open file and close Diffview' } },
+          },
+          file_history_panel = {
+            { 'n', 'gf', function()
+              require("diffview.actions").goto_file_edit()
+              vim.cmd("DiffviewClose")
+            end, { desc = 'Open file and close Diffview' } },
+          },
+        },
       }
     end,
     keys = {
