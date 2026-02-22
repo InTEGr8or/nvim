@@ -164,6 +164,8 @@ return {
 
   { -- Fuzzy Finder (files, lsp, etc)
     'nvim-telescope/telescope.nvim',
+    -- Telescope requires 0.10.4+ for the latest version
+    tag = vim.fn.has 'nvim-0.10.4' == 0 and '0.1.8' or nil,
     event = 'VimEnter',
     dependencies = {
       'nvim-lua/plenary.nvim',
@@ -533,6 +535,8 @@ return {
       require('mason-lspconfig').setup {
         ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
         automatic_installation = false,
+        -- automatic_enable requires Neovim 0.11+
+        automatic_enable = vim.fn.has 'nvim-0.11' == 1,
         handlers = {
           function(server_name)
             local server = servers[server_name] or {}
@@ -861,16 +865,25 @@ return {
 
       local function save_breakpoints()
         local status, result = pcall(function()
-          local breakpoints = vim.tbl_map(function(bp)
-            vim.notify('Saving breakpoint: ' .. bp.file .. ':' .. bp.line, vim.log.levels.DEBUG)
-            return {
-              file = bp.file,
-              line = bp.line,
-              condition = bp.condition,
-              hit_condition = bp.hit_condition,
-              log_message = bp.log_message,
-            }
-          end, require('dap').list_breakpoints())
+          local all_breakpoints = require('dap').list_breakpoints()
+          if not all_breakpoints or vim.tbl_isempty(all_breakpoints) then
+            return
+          end
+
+          local breakpoints = {}
+          for bufnr, bp_list in pairs(all_breakpoints) do
+            local filename = vim.api.nvim_buf_get_name(bufnr)
+            for _, bp in ipairs(bp_list) do
+              table.insert(breakpoints, {
+                file = filename,
+                line = bp.line,
+                condition = bp.condition,
+                hit_condition = bp.hit_condition,
+                log_message = bp.log_message,
+              })
+            end
+          end
+
           local encoded_breakpoints = vim.json.encode(breakpoints)
           vim.notify('Encoded breakpoints: ' .. encoded_breakpoints, vim.log.levels.DEBUG)
           vim.fn.writefile({ encoded_breakpoints }, DAP_BREAKPOINTS_FILE)
