@@ -986,8 +986,14 @@ return {
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
-    main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
+    config = function(_, opts)
+      -- Handle the 1.0.0+ breaking change: nvim-treesitter.configs is gone
+      local ok, configs = pcall(require, 'nvim-treesitter.configs')
+      if ok then
+        configs.setup(opts)
+      end
+    end,
     opts = {
       ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc', 'jinja', 'htmldjango' },
       -- Autoinstall languages that are not installed
@@ -1013,30 +1019,33 @@ return {
     'nvim-treesitter/nvim-treesitter-textobjects',
     dependencies = { 'nvim-treesitter/nvim-treesitter' },
     config = function()
-      require('nvim-treesitter.configs').setup {
-        textobjects = {
-          move = {
-            enable = true,
-            set_jumps = true, -- whether to set jumps in the jumplist
-            goto_next_start = {
-              [']m'] = '@function.outer',
-              [']]'] = '@class.outer',
-            },
-            goto_next_end = {
-              [']M'] = '@function.outer',
-              [']['] = '@class.outer',
-            },
-            goto_previous_start = {
-              ['[m'] = '@function.outer',
-              ['[['] = '@class.outer',
-            },
-            goto_previous_end = {
-              ['[M'] = '@function.outer',
-              ['[]'] = '@class.outer',
+      local ok, configs = pcall(require, 'nvim-treesitter.configs')
+      if ok then
+        configs.setup {
+          textobjects = {
+            move = {
+              enable = true,
+              set_jumps = true, -- whether to set jumps in the jumplist
+              goto_next_start = {
+                [']m'] = '@function.outer',
+                [']]'] = '@class.outer',
+              },
+              goto_next_end = {
+                [']M'] = '@function.outer',
+                [']['] = '@class.outer',
+              },
+              goto_previous_start = {
+                ['[m'] = '@function.outer',
+                ['[['] = '@class.outer',
+              },
+              goto_previous_end = {
+                ['[M'] = '@function.outer',
+                ['[]'] = '@class.outer',
+              },
             },
           },
-        },
-      }
+        }
+      end
     end,
   },
 
