@@ -45,12 +45,34 @@ return {
         ['j'] = 'none',
         ['k'] = 'none',
         ['Y'] = 'copy_path',
-        ['<leader>gv'] = function() vim.cmd('DiffviewOpen') end,
-        ['<leader>gh'] = function() vim.cmd('DiffviewFileHistory') end,
+        ['<leader>gv'] = function(state)
+          local root = state.path
+          local git_root = vim.fn.systemlist('git -C ' .. vim.fn.shellescape(root) .. ' rev-parse --show-toplevel')[1]
+          if git_root then
+            require('diffview').open({}, { git_root = git_root })
+          else
+            vim.notify('Not a git repository: ' .. root, vim.log.levels.WARN)
+          end
+        end,
+        ['<leader>gh'] = function(state)
+          local root = state.path
+          local git_root = vim.fn.systemlist('git -C ' .. vim.fn.shellescape(root) .. ' rev-parse --show-toplevel')[1]
+          if git_root then
+            require('diffview').file_history({}, { git_root = git_root })
+          else
+            vim.notify('Not a git repository: ' .. root, vim.log.levels.WARN)
+          end
+        end,
         ['<leader>gf'] = function(state)
           local node = state.tree:get_node()
           if node then
-            vim.cmd('DiffviewFileHistory ' .. vim.fn.fnameescape(node.path))
+            local root = state.path
+            local git_root = vim.fn.systemlist('git -C ' .. vim.fn.shellescape(root) .. ' rev-parse --show-toplevel')[1]
+            if git_root then
+              require('diffview').file_history({ node.path }, { git_root = git_root })
+            else
+              vim.notify('Not a git repository: ' .. root, vim.log.levels.WARN)
+            end
           end
         end,
         ['h'] = function(state)
