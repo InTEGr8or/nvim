@@ -21,6 +21,13 @@ return {
         ['K'] = 'prev_sibling',
         ['j'] = 'none',
         ['k'] = 'none',
+        ['Y'] = function(state)
+          local node = state.tree:get_node()
+          local path = node:get_id()
+          local relpath = vim.fn.fnamemodify(path, ':.')
+          vim.fn.setreg('+', relpath)
+          vim.notify('Copied relative path: ' .. relpath)
+        end,
         ['<leader>gv'] = function() vim.cmd('DiffviewOpen') end,
         ['<leader>gh'] = function() vim.cmd('DiffviewFileHistory') end,
         ['<leader>gf'] = function(state)
