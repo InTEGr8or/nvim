@@ -27,25 +27,6 @@ return {
         vim.notify('No node selected in Neo-tree', vim.log.levels.WARN)
       end
     end, { desc = 'Copy relative path of current Neo-tree node' })
-
-    -- Aggressive keymap overrides for Neo-tree
-    vim.api.nvim_create_autocmd('FileType', {
-      pattern = 'neo-tree',
-      callback = function()
-        -- Force space to be the leader key (unmap Neo-tree default)
-        vim.keymap.set('n', '<space>', '<space>', { remap = true, buffer = true })
-
-        -- Custom 'u' to go up a directory
-        vim.keymap.set('n', 'u', function()
-          local state = require('neo-tree.sources.manager').get_state 'filesystem'
-          local path = state.path
-          local parent = vim.fn.fnamemodify(path, ':h')
-          vim.cmd('cd ' .. vim.fn.fnameescape(parent))
-          require('neo-tree.sources.manager').navigate(state, parent)
-          vim.notify('Changed root to: ' .. parent)
-        end, { buffer = true, desc = 'Go up to parent directory' })
-      end,
-    })
   end,
   opts = {
     commands = {
@@ -56,10 +37,19 @@ return {
         vim.fn.setreg('+', relpath)
         vim.notify('Copied relative path: ' .. relpath)
       end,
+      parent_root = function(state)
+        local path = state.path
+        local parent = vim.fn.fnamemodify(path, ':h')
+        vim.cmd('cd ' .. vim.fn.fnameescape(parent))
+        require('neo-tree.sources.manager').navigate(state, parent)
+        vim.notify('Changed root to: ' .. parent)
+      end,
     },
     window = {
       mappings = {
         ['\\'] = 'close_window',
+        ['<space>'] = 'none', -- Explicitly disable to allow leader key through
+        ['u'] = 'parent_root', -- Use native command to avoid 'undo' conflict
         ['J'] = 'next_sibling',
         ['K'] = 'prev_sibling',
         ['j'] = 'none',
