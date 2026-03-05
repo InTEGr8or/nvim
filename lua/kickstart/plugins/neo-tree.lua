@@ -55,7 +55,7 @@ return {
             vim.notify('Cannot change root to a file', vim.log.levels.WARN)
           end
         end,
-        ['<space>'] = 'none',
+        ['<space>'] = 'nop',
         ['C'] = function(state)
           local node = state.tree:get_node()
           if node.type == 'directory' then
