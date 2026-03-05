@@ -45,6 +45,17 @@ return {
         ['j'] = 'none',
         ['k'] = 'none',
         ['Y'] = 'copy_path',
+        ['.'] = function(state)
+          local node = state.tree:get_node()
+          if node.type == 'directory' then
+            vim.cmd('cd ' .. vim.fn.fnameescape(node.path))
+            require('neo-tree.sources.manager').navigate(state, node.path)
+            vim.notify('Changed root to: ' .. node.path)
+          else
+            vim.notify('Cannot change root to a file', vim.log.levels.WARN)
+          end
+        end,
+        ['<space>'] = 'none',
         ['C'] = function(state)
           local node = state.tree:get_node()
           if node.type == 'directory' then
