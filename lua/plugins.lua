@@ -558,8 +558,8 @@ return {
       require('mason-lspconfig').setup {
         ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
         automatic_installation = false,
-        -- automatic_enable requires Neovim 0.11+
-        automatic_enable = vim.fn.has 'nvim-0.11' == 1,
+        -- Disable automatic_enable to avoid a bug in mason-lspconfig v3.0.0-rc
+        automatic_enable = false,
         handlers = {
           function(server_name)
             local server = servers[server_name] or {}
