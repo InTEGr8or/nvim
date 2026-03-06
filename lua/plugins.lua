@@ -260,7 +260,7 @@ return {
       vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
-      vim.keymap.set('n', '<leader>sz', require('telescope').extensions.zoxide.list, { desc = '[S]earch [Z]oxide (Change Root)' })
+      vim.keymap.set('n', 'gz', require('telescope').extensions.zoxide.list, { desc = 'Zoxide (Change Root)' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
       vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = '[ ] Find existing buffers' })
 
@@ -1081,85 +1081,6 @@ return {
     opts = {},
   },
 
-  {
-    'nvim-neo-tree/neo-tree.nvim',
-    branch = 'v3.x',
-    dependencies = {
-      'nvim-lua/plenary.nvim',
-      { 'nvim-tree/nvim-web-devicons', enabled = vim.g.have_nerd_font }, -- Required for file icons
-      'MunifTanjim/nui.nvim',
-    },
-    keys = {
-      { '<leader>e', '<cmd>Neotree toggle<CR>', desc = 'Toggle Neo-tree' },
-      { '<leader>E', '<cmd>Neotree reveal<CR>', desc = 'Reveal File in Neo-tree' },
-    },
-    opts = {
-      filesystem = {
-        follow_current_file = {
-          enabled = true, -- This will make the tree follow your current file
-        },
-        filtered_items = {
-          visible = true, -- Keep dimmed items visible for manual navigation
-          hide_dotfiles = false,
-          hide_git_ignored = true, -- Hide git-ignored items from search, but keep them visible (dimmed) in the tree
-          never_show = {
-            '.git',
-            'node_modules',
-            '.ds_store',
-          },
-        },
-        -- Limit large directories for performance
-        filter = function(name, path)
-          local state = require('neo-tree.sources.manager').get_state('filesystem')
-          local root = state.path
-          if root:find 'indexes' or root:find 'queues' then
-            -- We use a simple counter attached to the state to limit items
-            state.limit_count = (state.limit_count or 0) + 1
-            if state.limit_count > 30 then
-              return false
-            end
-          end
-          return true
-        end,
-        find_command = 'fd', -- Use fd for searching (respects .gitignore by default)
-        find_args = {
-          fd = {
-            '--exclude',
-            '.git',
-            '--exclude',
-            'node_modules',
-            '--exclude',
-            '.mypy_cache',
-            '--exclude',
-            '.venv',
-            '--exclude',
-            '__pycache__',
-          },
-        },
-        find_by_full_path_words = true, -- Better path-based fuzzy searching
-        window = {
-          mappings = {
-            ['f'] = 'fuzzy_finder',
-            ['/'] = 'fuzzy_finder',
-          },
-        },
-        event_handlers = {
-          {
-            event = 'neo_tree_directory_opened',
-            handler = function(args)
-              local state = require('neo-tree.sources.manager').get_state('filesystem')
-              state.limit_count = 0 -- Reset counter on every directory open
-              local path = args.path
-              if path:find 'indexes' or path:find 'queues' then
-                vim.notify('Large directory: Limiting view to first 30 items for performance.', vim.log.levels.WARN)
-              end
-            end,
-          },
-        },
-      },
-    },
-  },
-
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
   -- place them in the correct locations.
@@ -1173,7 +1094,7 @@ return {
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.neo-tree',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
