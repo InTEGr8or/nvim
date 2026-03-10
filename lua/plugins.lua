@@ -556,6 +556,20 @@ return {
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
+      -- Patch mason-registry to avoid the 'updated_registries' nil crash in mason-lspconfig v3.0.0-rc
+      local registry = require 'mason-registry'
+      local original_refresh = registry.refresh
+      registry.refresh = function(cb)
+        if cb then
+          local wrapped_cb = function(success, updated_registries)
+            cb(success, updated_registries or {})
+          end
+          original_refresh(wrapped_cb)
+        else
+          original_refresh()
+        end
+      end
+
       require('mason-lspconfig').setup {
         ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
         automatic_installation = false,
