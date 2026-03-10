@@ -1106,6 +1106,19 @@ return {
       -- Quick navigation between quickfix items
       vim.keymap.set('n', '[q', '<cmd>cprevious<cr>', { desc = 'Previous Quickfix' })
       vim.keymap.set('n', ']q', '<cmd>cnext<cr>', { desc = 'Next Quickfix' })
+
+      -- HTML to Markdown conversion using existing bash function
+      vim.api.nvim_create_user_command('ToMarkdown', function()
+        local file = vim.fn.expand '%'
+        if vim.bo.filetype ~= 'html' then
+          vim.notify('Not an HTML file', vim.log.levels.ERROR)
+          return
+        end
+        local md_file = vim.fn.expand '%:r' .. '.md'
+        vim.cmd('silent !cat ' .. vim.fn.shellescape(file) .. ' | tomarkdown > ' .. vim.fn.shellescape(md_file))
+        vim.notify('Converted to: ' .. md_file)
+        vim.cmd('edit ' .. vim.fn.fnameescape(md_file))
+      end, { desc = 'Convert current HTML file to Markdown' })
     end,
   },
 
