@@ -126,6 +126,7 @@ return {
       },
     },
     filesystem = {
+      use_libuv_file_watcher = true, -- This will use the OS level file watchers to detect changes
       follow_current_file = {
         enabled = true,
       },
