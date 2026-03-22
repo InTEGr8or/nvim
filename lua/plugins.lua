@@ -804,7 +804,7 @@ return {
       -- cursor location to LINE:COLUMN
       ---@diagnostic disable-next-line: duplicate-set-field
       statusline.section_location = function()
-        return '%2l/%L'
+        return '%l:%v/' .. vim.api.nvim_buf_line_count(0)
       end
 
       -- ... and there is more!
