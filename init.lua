@@ -190,15 +190,133 @@ vim.api.nvim_create_autocmd('FileType', {
     vim.opt_local.conceallevel = 2
     vim.opt_local.concealcursor = 'nv' -- Keep concealed in Normal and Visual modes
 
+    -- Function to show the field name based on headers
+    local function show_field_name()
+      local headers = vim.b.usv_headers
+      if not headers then
+        vim.api.nvim_echo({ { 'No headers found', 'WarningMsg' } }, false, {})
+        return
+      end
+
+      local line = vim.api.nvim_get_current_line()
+      local col = vim.api.nvim_win_get_cursor(0)[2]
+      local prefix = line:sub(1, col)
+      local _, count = prefix:gsub('\x1f', '')
+      local index = count + 1
+
+      if headers[index] then
+        vim.api.nvim_echo({ { 'Field [' .. index .. ']: ', 'Label' }, { headers[index], 'Special' } }, false, {})
+      else
+        vim.api.nvim_echo({ { 'Field [' .. index .. ']', 'Label' } }, false, {})
+      end
+    end
+
     -- Navigation: ( and ) for field boundaries
-    vim.keymap.set('n', ')', [[/\%x1f/e+1<CR>]], { buffer = true, silent = true, desc = 'Next Field Content' })
-    vim.keymap.set('n', '(', [[?\%x1f\|^?e+1<CR>]], { buffer = true, silent = true, desc = 'Prev Field Content' })
+    vim.keymap.set('n', ')', function()
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes([[/\%x1f/e+1<CR>]], true, false, true), 'n', false)
+      vim.schedule(show_field_name)
+    end, { buffer = true, silent = true, desc = 'Next Field Content' })
+
+    vim.keymap.set('n', '(', function()
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes([[?\%x1f\|^?e+1<CR>]], true, false, true), 'n', false)
+      vim.schedule(show_field_name)
+    end, { buffer = true, silent = true, desc = 'Prev Field Content' })
+
+    vim.keymap.set('n', 'gh', show_field_name, { buffer = true, desc = 'Show USV field name' })
 
     -- Text objects: if (inner field) and af (around field)
     -- inner field: content between delimiters
     vim.keymap.set({ 'o', 'x' }, 'if', [[:<C-u>call search('\%x1f\|$', 'W')<CR>v?\%x1f\|^?e+1<CR>o]], { buffer = true, silent = true, desc = 'inner field' })
     -- around field: content plus leading delimiter
     vim.keymap.set({ 'o', 'x' }, 'af', [[:<C-u>call search('\%x1f\|$', 'W')<CR>v?\%x1f\|^?<CR>o]], { buffer = true, silent = true, desc = 'around field' })
+
+    -- Header detection logic
+    local function set_usv_headers()
+      local current_file = vim.api.nvim_buf_get_name(0)
+      if current_file == '' then return end
+      local abs_current_file = vim.fn.simplify(vim.fn.fnamemodify(current_file, ':p'))
+      local headers = nil
+
+      -- Frictionless Data: Search for datapackage.json up the tree
+      local datapackage_path_list = vim.fs.find('datapackage.json', { upward = true, path = vim.fn.fnamemodify(abs_current_file, ':h') })
+      local datapackage_path = datapackage_path_list[1]
+
+      if datapackage_path then
+        local f = io.open(datapackage_path, 'r')
+        if f then
+          local content = f:read '*a'
+          f:close()
+          local ok, datapackage = pcall(vim.json.decode, content)
+          if ok and datapackage.resources then
+            -- Find the resource matching the current file
+            local package_root = vim.fn.simplify(vim.fn.fnamemodify(datapackage_path, ':p:h'))
+            local abs_current_file = vim.fn.simplify(vim.fn.fnamemodify(current_file, ':p'))
+
+            for _, resource in ipairs(datapackage.resources) do
+              if resource.path then
+                local is_match = false
+                local rpath = resource.path
+
+                -- 1. Try exact match first
+                local resource_full_path = vim.fn.simplify(package_root .. '/' .. rpath)
+                local abs_resource_path = vim.fn.fnamemodify(resource_full_path, ':p')
+                
+                if abs_resource_path == abs_current_file then
+                  is_match = true
+                elseif rpath:match('[%*%?%[%]]') then
+                  -- 2. Handle glob patterns (e.g., **/*.usv)
+                  if abs_current_file:sub(1, #package_root) == package_root then
+                    local relative_current = abs_current_file:sub(#package_root + 1)
+                    if relative_current:sub(1,1) == '/' then relative_current = relative_current:sub(2) end
+
+                    -- Workaround for glob2regpat's strictness with **/ requiring a subdirectory
+                    local pattern = vim.fn.glob2regpat(rpath)
+                    if vim.fn.match(relative_current, pattern) ~= -1 then
+                      is_match = true
+                    elseif rpath:sub(1,3) == "**/" then
+                      local fallback_rpath = rpath:sub(4) -- remove **/
+                      local fallback_pattern = vim.fn.glob2regpat(fallback_rpath)
+                      if vim.fn.match(relative_current, fallback_pattern) ~= -1 then
+                        is_match = true
+                      end
+                    end
+                  end
+                end
+
+                if is_match then
+                  if resource.schema and resource.schema.fields then
+                    headers = {}
+                    for _, field in ipairs(resource.schema.fields) do
+                      table.insert(headers, field.name or '')
+                    end
+                    break
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+
+      -- Primary: If no datapackage.json or no match found, use the first line of the buffer
+      if not headers then
+        local header_line = vim.api.nvim_buf_get_lines(0, 0, 1, false)[1]
+        if header_line then
+          headers = {}
+          for s in string.gmatch(header_line .. '\x1f', '(.-)\x1f') do
+            table.insert(headers, s)
+          end
+        end
+      end
+
+      if headers then
+        vim.b.usv_headers = headers
+        -- Also set rainbow_csv_header for the plugin, converting back to comma for its internal use
+        vim.b.rainbow_csv_header = table.concat(headers, ',')
+      end
+    end
+
+    set_usv_headers()
 
     -- Treat Record Separator as a newline for editing
     local function RS_to_newline()
@@ -230,85 +348,6 @@ vim.api.nvim_create_autocmd('FileType', {
     vim.keymap.set('i', '<M-u>', '\x1f', { buffer = true, desc = 'Insert Unit Separator' })
     vim.keymap.set('i', '<M-r>', '\x1e', { buffer = true, desc = 'Insert Record Separator' })
 
-    -- Function to show the field name based on headers
-    local function show_field_name()
-      local headers = vim.b.usv_headers
-      if not headers then
-        vim.api.nvim_echo({ { 'No headers found', 'WarningMsg' } }, false, {})
-        return
-      end
-
-      local line = vim.api.nvim_get_current_line()
-      local col = vim.api.nvim_win_get_cursor(0)[2]
-      local prefix = line:sub(1, col)
-      local _, count = prefix:gsub('\x1f', '')
-      local index = count + 1
-
-      if headers[index] then
-        vim.api.nvim_echo({ { 'Field [' .. index .. ']: ', 'Label' }, { headers[index], 'Special' } }, false, {})
-      else
-        vim.api.nvim_echo({ { 'Field [' .. index .. ']', 'Label' } }, false, {})
-      end
-    end
-
-    vim.keymap.set('n', 'gh', show_field_name, { buffer = true, desc = 'Show USV field name' })
-
-    -- Header detection logic
-    local function set_usv_headers()
-      local current_file = vim.api.nvim_buf_get_name(0)
-      local header_line = nil
-      local headers = nil
-
-      -- Frictionless Data: Search for datapackage.json up the tree
-      local datapackage_path = vim.fs.find('datapackage.json', { upward = true, path = vim.fn.fnamemodify(current_file, ':p:h') })[1]
-
-      if datapackage_path then
-        local f = io.open(datapackage_path, 'r')
-        if f then
-          local content = f:read '*a'
-          f:close()
-          local ok, datapackage = pcall(vim.json.decode, content)
-          if ok and datapackage.resources then
-            -- Find the resource matching the current file
-            local package_root = vim.fn.fnamemodify(datapackage_path, ':p:h')
-            for _, resource in ipairs(datapackage.resources) do
-              if resource.path then
-                local resource_full_path = package_root .. '/' .. resource.path
-                if vim.fn.simplify(resource_full_path) == vim.fn.simplify(current_file) then
-                  if resource.schema and resource.schema.fields then
-                    headers = {}
-                    for _, field in ipairs(resource.schema.fields) do
-                      table.insert(headers, field.name or '')
-                    end
-                    break
-                  end
-                end
-              end
-            end
-          end
-        end
-      end
-
-      -- Primary: If no datapackage.json or no match found, use the first line of the buffer
-      if not headers then
-        header_line = vim.api.nvim_buf_get_lines(0, 0, 1, false)[1]
-        if header_line then
-          headers = {}
-          for s in string.gmatch(header_line .. '\x1f', '(.-)\x1f') do
-            table.insert(headers, s)
-          end
-        end
-      end
-
-      if headers then
-        vim.b.usv_headers = headers
-        -- Also set rainbow_csv_header for the plugin, converting back to comma for its internal use
-        vim.b.rainbow_csv_header = table.concat(headers, ',')
-      end
-    end
-
-    set_usv_headers()
-
     -- Force rainbow_csv to try and highlight if it didn't start
     -- This handles files without headers
     vim.defer_fn(function()
@@ -326,10 +365,6 @@ vim.api.nvim_create_autocmd('FileType', {
   callback = function()
     local delim = vim.bo.filetype == 'tsv' and '\t' or ','
     
-    -- Navigation: ( and ) for fields
-    vim.keymap.set('n', ')', '/[' .. delim .. ']<CR>', { buffer = true, silent = true, desc = 'Next Field' })
-    vim.keymap.set('n', '(', '?[' .. delim .. ']<CR>', { buffer = true, silent = true, desc = 'Prev Field' })
-
     -- Function to show the field name
     local function show_field_name()
       local first_line = vim.api.nvim_buf_get_lines(0, 0, 1, false)[1]
@@ -352,6 +387,17 @@ vim.api.nvim_create_autocmd('FileType', {
         vim.api.nvim_echo({ { 'Field [' .. index .. ']', 'Label' } }, false, {})
       end
     end
+
+    -- Navigation: ( and ) for fields
+    vim.keymap.set('n', ')', function()
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('/' .. delim .. '<CR>', true, false, true), 'n', false)
+      vim.schedule(show_field_name)
+    end, { buffer = true, silent = true, desc = 'Next Field' })
+
+    vim.keymap.set('n', '(', function()
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('?' .. delim .. '<CR>', true, false, true), 'n', false)
+      vim.schedule(show_field_name)
+    end, { buffer = true, silent = true, desc = 'Prev Field' })
 
     vim.keymap.set('n', 'gh', show_field_name, { buffer = true, desc = 'Show CSV field name' })
   end,
@@ -478,6 +524,9 @@ vim.o.number = true
 --  Experiment for yourself to see if you like it!
 vim.o.relativenumber = true
 
+-- Show the column number
+vim.o.ruler = true
+
 -- Minimal number of screen lines to keep above and below the cursor.
 vim.o.scrolloff = 10
 
@@ -545,6 +594,17 @@ end, { desc = 'Copy relative path (NeoTree root)' })
 
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
+
+-- Automatically remove trailing carriage returns (^M) on save
+vim.api.nvim_create_autocmd('BufWritePre', {
+  group = vim.api.nvim_create_augroup('strip-carriage-returns', { clear = true }),
+  pattern = '*',
+  callback = function()
+    local save_cursor = vim.fn.getpos('.')
+    vim.cmd [[silent! %s/\r$//e]]
+    vim.fn.setpos('.', save_cursor)
+  end,
+})
 
 -- Highlight when yanking (copying) text
 --  Try it with `yap` in normal mode
