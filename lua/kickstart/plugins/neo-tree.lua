@@ -131,7 +131,7 @@ return {
         enabled = true,
       },
       filtered_items = {
-        visible = true,
+        visible = false,
         hide_git_ignored = true,
         never_show = {
           '.git',
@@ -170,8 +170,9 @@ return {
       find_by_full_path_words = true, -- Better path-based fuzzy searching
       window = {
         mappings = {
-          ['f'] = 'fuzzy_finder',
+          ['f'] = 'filter_on_submit',
           ['/'] = 'fuzzy_finder',
+          ['<esc>'] = 'clear_filter',
         },
       },
       event_handlers = {
