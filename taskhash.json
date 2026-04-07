@@ -1,0 +1,26 @@
+{
+  "includes": [
+    "src"
+  ],
+  "excludes": [
+    ".git",
+    "__pycache__",
+    "node_modules",
+    "vendor",
+    ".code_signatures.json",
+    "taskhash",
+    "taskhash.exe",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    "*.lock"
+  ],
+  "store": ".code_signatures.json",
+  "runner": "make",
+  "tasks": {
+    "build": {},
+    "lint": {},
+    "test": {}
+  }
+}
